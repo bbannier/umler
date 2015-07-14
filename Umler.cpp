@@ -27,10 +27,10 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include <ext/alloc_traits.h>
 
 #include <cassert>
 #include <cstddef>
+#include <ext/alloc_traits.h>
 
 using namespace clang;
 using namespace clang::ast_matchers;
@@ -40,7 +40,7 @@ using namespace llvm;
 namespace {
 class DB {
 public:
-  DB(const std::string& dbpath) {
+  explicit DB(const std::string &dbpath) {
     if (sqlite3_open(dbpath.c_str(), &connection) != SQLITE_OK) {
       llvm::errs() << "COULD NOT OPEN DB\n";
       connection = nullptr;
@@ -111,7 +111,9 @@ private:
     const auto rc = sqlite3_step(stmt);
     if (rc == SQLITE_DONE) {
       return true;
-    } else if (rc == SQLITE_ROW) {
+    }
+
+    if (rc == SQLITE_ROW) {
       std::vector<std::string> result;
       for (int column = 0; column < sqlite3_column_count(stmt); ++column) {
         result.emplace_back(
@@ -119,10 +121,9 @@ private:
       }
       rows.emplace_back(std::move(result));
       return step();
-    } else {
-      llvm::errs() << sqlite3_errmsg(connection) << "\n";
-      return false;
     }
+
+    return false;
   }
 };
 
@@ -150,9 +151,9 @@ template <> std::string className<CXXRecordDecl>(const CXXRecordDecl &cl) {
     name += ">";
 
     return name;
-  } else {
-    return cl.getNameAsString();
   }
+
+  return cl.getNameAsString();
 }
 template <> std::string className<QualType>(const QualType &t) {
   const auto &tp = t.getTypePtrOrNull();
@@ -225,9 +226,11 @@ bool recordClass(const CXXRecordDecl *cl, const DB &db) {
     const std::string is_static = std::to_string(method->isStatic());
     const std::string is_abstract = std::to_string(method->isVirtual());
 
-    if (not db.execute(
-            "INSERT OR IGNORE INTO methods (class, name, returns, parameters, access, static, abstract) VALUES ('" +
-            class_name + "','" + method_name + "','" + returns + "','" + parameters + "'," + access + "," + is_static + "," + is_abstract + ");"))
+    if (not db.execute("INSERT OR IGNORE INTO methods (class, name, returns, "
+                       "parameters, access, static, abstract) VALUES ('" +
+                       class_name + "','" + method_name + "','" + returns +
+                       "','" + parameters + "'," + access + "," + is_static +
+                       "," + is_abstract + ");"))
       return false;
   }
 
@@ -288,7 +291,7 @@ void walkHierarchy(const CXXRecordDecl *derived, const DB &db) {
 
 class UmlerCallback : public MatchFinder::MatchCallback {
 public:
-  UmlerCallback(const DB &db) : db(db) {}
+  explicit UmlerCallback(const DB &db) : db(db) {}
 
   void run(const MatchFinder::MatchResult &Result) override {
     const auto node = Result.Nodes.getNodeAs<CXXRecordDecl>("node");
@@ -454,7 +457,7 @@ int main(int argc, const char **argv) {
   ast_matchers::MatchFinder Finder;
 
   const auto &name = ClassName.getValue();
-  const auto &match_name = not name.empty() ? hasName(name) : anything();
+  const auto &match_name = name.empty() ? anything() : hasName(name);
 
   const auto db = DB{DBPath.getValue()};
   auto Callback = UmlerCallback{db};
