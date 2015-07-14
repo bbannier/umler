@@ -12,3 +12,5 @@ target_link_libraries(umler
   clangFrontend
   clangTooling
 )
+
+install(TARGETS umler RUNTIME DESTINATION bin)
