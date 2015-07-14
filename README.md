@@ -47,6 +47,5 @@ To persist the parse result the internal database can be dumped with `-d`
 
     % umler -c ClassToDocument *.cpp -d db.sqlite
 
-If subsequent are given the same database parses will reuse in creation the
-descriptions, and the database will contain results from all parses. This
-allows to iteratively enhance descriptions. 
+If subsequent invocations are given the same database parses the database will 
+contain results from all parses. This allows to iteratively enhance descriptions. 
