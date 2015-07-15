@@ -366,15 +366,11 @@ template <> void reportEnd<plantuml>(const DB &) {
   llvm::outs() << "\n@enduml\n";
 }
 template <> void reportClasses<plantuml>(const DB &db) {
-  if (not db.execute("SELECT DISTINCT namespace FROM classes"))
-    return;
-
+  db.execute("SELECT DISTINCT namespace FROM classes");
   const auto namespace_rows = db.rows;
 
   for (size_t i = 0; i < namespace_rows.size(); ++i) {
     const auto &ns = namespace_rows[i][0];
-    // llvm::outs() << "subgraph cluster_" << std::to_string(i) << "{\n";
-    // llvm::outs() << "label = \"" << ns << "\"\n";
     if (not db.execute("SELECT name FROM classes WHERE namespace = '" + ns +
                        "'"))
       return;
@@ -427,16 +423,21 @@ template <> void reportClasses<plantuml>(const DB &db) {
           llvm::outs() << "\"" + class_ + "\" --> \"" + row[0] + "\"\n";
         }
       }
+    }
 
-      // show "binds" relationships
-      if (DocumentBinds.getValue()) {
-        db.execute(
-            "SELECT template, template_args FROM template_inst WHERE instance ='" +
-            class_ + "'");
-        for (const auto &row : db.rows) {
-          // TODO only output a single node per template class
-          llvm::outs() << "class \"" + row[0] + "\"<" + row[1] + "> {\n}\n";
-          llvm::outs() << "\"" + class_ + "\" ..|> \"" + row[0] +
+    // show "binds" relationships
+    if (DocumentBinds.getValue()) {
+      db.execute("SELECT DISTINCT template, template_args FROM template_inst");
+      const auto template_rows = db.rows;
+
+      for (const auto& template_ : template_rows) {
+        llvm::outs() << "class \"" + template_[0] + "\"<" + template_[1] +
+                            "> {\n}\n";
+
+        db.execute("SELECT instance FROM template_inst WHERE instance = '" +
+                   template_[0] + "'");
+        for (const auto& row: db.rows) {
+          llvm::outs() << "\"" + row[0] + "\" ..|> \"" + template_[0] +
                               "\" : <<bind>>\n";
         }
       }
