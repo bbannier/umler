@@ -52,6 +52,9 @@ static cl::opt<bool> DocumentUses("document-uses",
 static cl::opt<bool> DocumentOwns("document-owns",
                                   cl::desc("show owns relationships"),
                                   cl::init(false), cl::cat(UmlerCategory));
+static cl::opt<bool> DocumentBinds("document-binds",
+                                  cl::desc("show binds relationships"),
+                                  cl::init(false), cl::cat(UmlerCategory));
 
 class DB {
 public:
@@ -93,7 +96,13 @@ public:
                     "user INTEGER REFERENCES classes(id),"
                     "object INTEGER REFERENCES classes(id))") or
         not execute("CREATE UNIQUE INDEX IF NOT EXISTS uses_idx ON "
-                    "uses(user, object)"))
+                    "uses(user, object)") or
+        not execute("CREATE TABLE IF NOT EXISTS template_inst ("
+                    "instance INTEGER REFERENCES classes(id),"
+                    "template TEXT NOT NULL,"
+                    "template_args TEXT);") or
+        not execute("CREATE UNIQUE INDEX IF NOT EXISTS template_inst_idx ON "
+                    "template_inst(instance, template, template_args)"))
       connection = nullptr;
   }
 
@@ -214,6 +223,26 @@ bool recordClass(const CXXRecordDecl *cl, const DB &db) {
 
   db.execute("INSERT OR IGNORE INTO classes (name, namespace) VALUES ('" +
              class_name + "','" + ns_name + "');");
+
+  if (const auto inst = dyn_cast_or_null<ClassTemplateSpecializationDecl>(cl)) {
+    // extract a string for the template parameters
+    std::string tmpl_args = "";
+    if (const auto tmpl = inst->getSpecializedTemplate()) {
+      if (const auto tmpl_para = tmpl->getTemplateParameters()) {
+        for (unsigned i = 0; i < tmpl_para->size(); ++i) {
+          if (i > 0) {
+            tmpl_args += ", ";
+          }
+          tmpl_args += tmpl_para->getParam(i)->getNameAsString();
+        }
+      }
+    }
+    db.execute("INSERT OR IGNORE INTO template_inst (instance, template, "
+               "template_args)"
+               "VALUES ('" +
+               class_name + "','" + inst->getNameAsString() + "','" +
+               tmpl_args + "')");
+  }
 
   for (const auto &method : cl->methods()) {
     if (method->isImplicit())
@@ -382,6 +411,7 @@ template <> void reportClasses<plantuml>(const DB &db) {
       }
       llvm::outs() << "}\n";
 
+      // show "owns" relationships
       if (DocumentOwns.getValue()) {
         db.execute("SELECT object, name FROM owns WHERE owner ='" + class_ +
                    "'");
@@ -395,6 +425,19 @@ template <> void reportClasses<plantuml>(const DB &db) {
         db.execute("SELECT object FROM uses WHERE user ='" + class_ + "'");
         for (const auto &row : db.rows) {
           llvm::outs() << "\"" + class_ + "\" --> \"" + row[0] + "\"\n";
+        }
+      }
+
+      // show "binds" relationships
+      if (DocumentBinds.getValue()) {
+        db.execute(
+            "SELECT template, template_args FROM template_inst WHERE instance ='" +
+            class_ + "'");
+        for (const auto &row : db.rows) {
+          // TODO only output a single node per template class
+          llvm::outs() << "class \"" + row[0] + "\"<" + row[1] + "> {\n}\n";
+          llvm::outs() << "\"" + class_ + "\" ..|> \"" + row[0] +
+                              "\" : <<bind>>\n";
         }
       }
     }
