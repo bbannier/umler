@@ -38,6 +38,21 @@ using namespace clang::tooling;
 using namespace llvm;
 
 namespace {
+// Set up the command line options
+static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
+static cl::OptionCategory UmlerCategory("tool-template options");
+static cl::opt<std::string> ClassName("c", cl::desc("Class Name"), cl::init(""),
+                                      cl::cat(UmlerCategory));
+static cl::opt<std::string> DBPath("d", cl::desc("path to result database"),
+                                   cl::init(":memory:"),
+                                   cl::cat(UmlerCategory));
+static cl::opt<bool> DocumentUses("document-uses",
+                                  cl::desc("show uses relationships"),
+                                  cl::init(false), cl::cat(UmlerCategory));
+static cl::opt<bool> DocumentOwns("document-owns",
+                                  cl::desc("show owns relationships"),
+                                  cl::init(false), cl::cat(UmlerCategory));
+
 class DB {
 public:
   explicit DB(const std::string &dbpath) {
@@ -197,10 +212,8 @@ bool recordClass(const CXXRecordDecl *cl, const DB &db) {
     ns_name = ns_name.substr(0, ns_name.size() - 2);
   }
 
-  if (not db.execute(
-          "INSERT OR IGNORE INTO classes (name, namespace) VALUES ('" +
-          class_name + "','" + ns_name + "');"))
-    return false;
+  db.execute("INSERT OR IGNORE INTO classes (name, namespace) VALUES ('" +
+             class_name + "','" + ns_name + "');");
 
   for (const auto &method : cl->methods()) {
     if (method->isImplicit())
@@ -369,14 +382,20 @@ template <> void reportClasses<plantuml>(const DB &db) {
       }
       llvm::outs() << "}\n";
 
-      db.execute("SELECT object, name FROM owns WHERE owner ='" + class_ + "'");
-      for (const auto& row: db.rows)
-        llvm::outs() << "\"" + class_ + "\" o-- \"" + row[0] + "\" : \"" +
-                            row[1] + "\"\n";
+      if (DocumentOwns.getValue()) {
+        db.execute("SELECT object, name FROM owns WHERE owner ='" + class_ +
+                   "'");
+        for (const auto &row : db.rows)
+          llvm::outs() << "\"" + class_ + "\" o-- \"" + row[0] + "\" : \"" +
+                              row[1] + "\"\n";
+      }
 
-      db.execute("SELECT object FROM uses WHERE user ='" + class_ + "'");
-      for (const auto& row : db.rows) {
-        llvm::outs() << "\"" + class_ + "\" --> \"" + row[0] + "\"\n";
+      // show "uses" relationships
+      if (DocumentUses.getValue()) {
+        db.execute("SELECT object FROM uses WHERE user ='" + class_ + "'");
+        for (const auto &row : db.rows) {
+          llvm::outs() << "\"" + class_ + "\" --> \"" + row[0] + "\"\n";
+        }
       }
     }
   }
@@ -439,15 +458,6 @@ template <ReportType T> void report(const DB &db) {
   reportEnd<T>(db);
 }
 } // end anonymous namespace
-
-// Set up the command line options
-static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
-static cl::OptionCategory UmlerCategory("tool-template options");
-static cl::opt<std::string> ClassName("c", cl::desc("Class Name"), cl::init(""),
-                                      cl::cat(UmlerCategory));
-static cl::opt<std::string> DBPath("d", cl::desc("path to result database"),
-                                   cl::init(":memory:"),
-                                   cl::cat(UmlerCategory));
 
 int main(int argc, const char **argv) {
   llvm::sys::PrintStackTraceOnErrorSignal();
