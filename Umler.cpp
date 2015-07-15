@@ -224,7 +224,7 @@ bool recordClass(const CXXRecordDecl *cl, const DB &db) {
     }
 
     const std::string is_static = std::to_string(method->isStatic());
-    const std::string is_abstract = std::to_string(method->isVirtual());
+    const std::string is_abstract = std::to_string(method->isPure());
 
     if (not db.execute("INSERT OR IGNORE INTO methods (class, name, returns, "
                        "parameters, access, static, abstract) VALUES ('" +
