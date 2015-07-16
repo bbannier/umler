@@ -434,7 +434,7 @@ template <> void reportClasses<plantuml>(const DB &db) {
         llvm::outs() << "class \"" + template_[0] + "\"<" + template_[1] +
                             "> {\n}\n";
 
-        db.execute("SELECT instance FROM template_inst WHERE instance = '" +
+        db.execute("SELECT instance FROM template_inst WHERE template = '" +
                    template_[0] + "'");
         for (const auto& row: db.rows) {
           llvm::outs() << "\"" + row[0] + "\" ..|> \"" + template_[0] +
