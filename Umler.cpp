@@ -41,8 +41,8 @@ namespace {
 // Set up the command line options
 static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
 static cl::OptionCategory UmlerCategory("tool-template options");
-static cl::opt<std::string> ClassName("c", cl::desc("Class Name"), cl::init(""),
-                                      cl::cat(UmlerCategory));
+static cl::list<std::string> ClassName("c", cl::desc("Class Name"),
+                                       cl::cat(UmlerCategory));
 static cl::opt<std::string> DBPath("d", cl::desc("path to result database"),
                                    cl::init(":memory:"),
                                    cl::cat(UmlerCategory));
@@ -197,7 +197,7 @@ template <> std::string className<TemplateArgument>(const TemplateArgument &a) {
   case clang::TemplateArgument::Integral:
     return std::to_string(*a.getAsIntegral().getRawData());
   default: // FIXME
-    llvm::errs() << "No idea how to print TeampleArgument kind " +
+    llvm::errs() << "No idea how to print TemplateArgument kind " +
                         std::to_string(a.getKind()) + "\n";
     return "";
   }
@@ -510,15 +510,22 @@ int main(int argc, const char **argv) {
                        OptionsParser.getSourcePathList());
   ast_matchers::MatchFinder Finder;
 
-  const auto &name = ClassName.getValue();
-  const auto &match_name = name.empty() ? anything() : hasName(name);
-
   const auto db = DB{DBPath.getValue()};
   auto Callback = UmlerCallback{db};
 
-  Finder.addMatcher(
-      recordDecl(match_name, isDefinition(), unless(isImplicit())).bind("node"),
-      &Callback);
+  if (ClassName.empty()) {
+    Finder.addMatcher(
+        recordDecl(anything(), isDefinition(), unless(isImplicit()))
+            .bind("node"),
+        &Callback);
+  } else {
+    for (const auto &name : ClassName) {
+      Finder.addMatcher(
+          recordDecl(hasName(name), isDefinition(), unless(isImplicit()))
+          .bind("node"),
+          &Callback);
+    }
+  }
 
   const auto frontend_result =
       Tool.run(newFrontendActionFactory(&Finder).get());
