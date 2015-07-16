@@ -412,7 +412,7 @@ template <> void reportClasses<plantuml>(const DB &db) {
         db.execute("SELECT object, name FROM owns WHERE owner ='" + class_ +
                    "'");
         for (const auto &row : db.rows)
-          llvm::outs() << "\"" + class_ + "\" o-- \"" + row[0] + "\" : \"" +
+          llvm::outs() << "\"" + class_ + "\" *-- \"" + row[0] + "\" : \"" +
                               row[1] + "\"\n";
       }
 
