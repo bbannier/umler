@@ -35,7 +35,8 @@ can be generated automatically with `cmake` by specifying at configure time
     % cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON path/to/source
 
 [Bear](https://github.com/rizsotto/Bear) can be used to extract compilation
-databases for some other build systems.
+databases for some other build systems. If no compilation database is used `--`
+can be passed as last command line argument.
 
 The infrastructure will automatically find the compilation database if it is
 located in the current directory or any of its source directories.
