@@ -16,21 +16,18 @@
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/ASTMatchers/ASTMatchersInternal.h"
-#include "clang/Basic/Specifiers.h"
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/Refactoring.h"
 #include "clang/Tooling/Tooling.h"
 
-#include <sqlite3.h>
-
 #include <algorithm>
 #include <memory>
 #include <string>
-#include <vector>
 
 #include <cassert>
-#include <cstddef>
-#include <ext/alloc_traits.h>
+
+#include "DB.h"
+#include "Report.h"
 
 using namespace clang;
 using namespace clang::ast_matchers;
@@ -55,101 +52,6 @@ static cl::opt<bool> DocumentOwns("document-owns",
 static cl::opt<bool> DocumentBinds("document-binds",
                                   cl::desc("show binds relationships"),
                                   cl::init(false), cl::cat(UmlerCategory));
-
-class DB {
-public:
-  explicit DB(const std::string &dbpath) {
-    if (sqlite3_open(dbpath.c_str(), &connection) != SQLITE_OK) {
-      llvm::errs() << "COULD NOT OPEN DB\n";
-      connection = nullptr;
-      return;
-    }
-
-    if (not execute("CREATE TABLE IF NOT EXISTS classes ("
-                    "id INTEGER PRIMARY KEY,"
-                    "name TEXT NOT NULL,"
-                    "namespace TEXT);") or
-        not execute("CREATE UNIQUE INDEX IF NOT EXISTS classes_idx ON "
-                    "classes(name, namespace)") or
-        not execute("CREATE TABLE IF NOT EXISTS inheritance ("
-                    "derived INTEGER REFERENCES classes(id),"
-                    "base INTEGER REFERENCES classes(id));") or
-        not execute("CREATE UNIQUE INDEX IF NOT EXISTS inheritance_idx ON "
-                    "inheritance(derived, base)") or
-        not execute("CREATE TABLE IF NOT EXISTS methods ("
-                    "class INTEGER REFERENCES classes(id),"
-                    "name TEXT NOT NULL,"
-                    "returns TEXT,"
-                    "parameters TEXT,"
-                    "access INTEGER,"
-                    "static INTEGER,"
-                    "abstract INTEGER);") or
-        not execute("CREATE UNIQUE INDEX IF NOT EXISTS methods_idx ON "
-                    "methods(class, name, returns, parameters)") or
-        not execute("CREATE TABLE IF NOT EXISTS owns ("
-                    "owner INTEGER REFERENCES classes(id),"
-                    "object INTEGER REFERENCES classes(id),"
-                    "name TEXT NOT NULL);") or
-        not execute("CREATE UNIQUE INDEX IF NOT EXISTS owns_idx ON "
-                    "owns(owner, object, name)") or
-        not execute("CREATE TABLE IF NOT EXISTS uses ("
-                    "user INTEGER REFERENCES classes(id),"
-                    "object INTEGER REFERENCES classes(id))") or
-        not execute("CREATE UNIQUE INDEX IF NOT EXISTS uses_idx ON "
-                    "uses(user, object)") or
-        not execute("CREATE TABLE IF NOT EXISTS template_inst ("
-                    "instance INTEGER REFERENCES classes(id),"
-                    "template TEXT NOT NULL,"
-                    "template_args TEXT);") or
-        not execute("CREATE UNIQUE INDEX IF NOT EXISTS template_inst_idx ON "
-                    "template_inst(instance, template, template_args)"))
-      connection = nullptr;
-  }
-
-  ~DB() {
-    sqlite3_close(connection);
-  }
-
-  bool execute(const std::string &statement) const {
-    if (sqlite3_prepare_v2(connection, statement.c_str(), -1, &stmt, nullptr) !=
-        SQLITE_OK) {
-      llvm::errs() << "COULD NOT PREPARE " << statement << "\n";
-      llvm::errs() << sqlite3_errmsg(connection) << "\n";
-      return false;
-    }
-
-    rows.clear();
-    step();
-
-    return true;
-  }
-
-  mutable std::vector<std::vector<std::string>> rows;
-
-  sqlite3 *connection;
-
-private:
-  mutable sqlite3_stmt *stmt;
-
-  bool step() const {
-    const auto rc = sqlite3_step(stmt);
-    if (rc == SQLITE_DONE) {
-      return true;
-    }
-
-    if (rc == SQLITE_ROW) {
-      std::vector<std::string> result;
-      for (int column = 0; column < sqlite3_column_count(stmt); ++column) {
-        result.emplace_back(
-            reinterpret_cast<const char *>(sqlite3_column_text(stmt, column)));
-      }
-      rows.emplace_back(std::move(result));
-      return step();
-    }
-
-    return false;
-  }
-};
 
 struct BaseCallbackData {
   const CXXRecordDecl* derived;
@@ -345,162 +247,6 @@ public:
   const DB& db;
 };
 
-enum ReportType { dot, sqlite, plantuml };
-
-template <ReportType> void reportBegin(const DB &) {}
-template <ReportType> void reportEnd(const DB &) {}
-template <ReportType> void reportClasses(const DB &) {}
-template <ReportType> void reportInheritance(const DB &) {}
-
-template <> void reportBegin<plantuml>(const DB &) {
-  llvm::outs() << "@startuml\n\n"
-                  "skinparam class {\n"
-                  "  BackgroundColor White\n"
-                  "  ArrowColor Black\n"
-                  "  BorderColor DimGrey\n"
-                  "}\n"
-                  "hide circle\n"
-                  "hide empty attributes\n\n";
-}
-template <> void reportEnd<plantuml>(const DB &) {
-  llvm::outs() << "\n@enduml\n";
-}
-template <> void reportClasses<plantuml>(const DB &db) {
-  db.execute("SELECT DISTINCT namespace FROM classes");
-  const auto namespace_rows = db.rows;
-
-  for (size_t i = 0; i < namespace_rows.size(); ++i) {
-    const auto &ns = namespace_rows[i][0];
-    if (not db.execute("SELECT name FROM classes WHERE namespace = '" + ns +
-                       "'"))
-      return;
-    const auto class_rows = db.rows;
-    for (const auto& row: class_rows) {
-      const auto& class_ = row[0];
-      llvm::outs() << "class \"" + class_ + "\" {\n";
-
-      db.execute("SELECT name, parameters, returns, access, static, abstract FROM methods WHERE class='" +
-                 class_ + "'");
-      for (const auto& method : db.rows) {
-        std::string access = "";
-        switch (std::stoi(method[3])) {
-        case AS_public: {
-          access = "+";
-        } break;
-        case AS_private: {
-          access = "-";
-        } break;
-        case AS_protected: {
-          access = "#";
-        } break;
-        case AS_none:
-          break;
-        }
-
-        const std::string is_static = std::stoi(method[4]) ? "{static}" : "";
-        const std::string is_abstract = std::stoi(method[5]) ? "{abstract}" : "";
-        const auto modifiers = is_static + is_abstract;
-
-        const auto returns = method[2] == "void" ? "" : method[2];
-        llvm::outs() << "  " + access + returns + " " + method[0] + "(" +
-                            method[1] + ")" + " " + modifiers + "\n";
-      }
-      llvm::outs() << "}\n";
-
-      // show "owns" relationships
-      if (DocumentOwns.getValue()) {
-        db.execute("SELECT object, name FROM owns WHERE owner ='" + class_ +
-                   "'");
-        for (const auto &row : db.rows)
-          llvm::outs() << "\"" + class_ + "\" *-- \"" + row[0] + "\" : \"" +
-                              row[1] + "\"\n";
-      }
-
-      // show "uses" relationships
-      if (DocumentUses.getValue()) {
-        db.execute("SELECT object FROM uses WHERE user ='" + class_ + "'");
-        for (const auto &row : db.rows) {
-          llvm::outs() << "\"" + class_ + "\" --> \"" + row[0] + "\"\n";
-        }
-      }
-    }
-
-    // show "binds" relationships
-    if (DocumentBinds.getValue()) {
-      db.execute("SELECT DISTINCT template, template_args FROM template_inst");
-      const auto template_rows = db.rows;
-
-      for (const auto& template_ : template_rows) {
-        llvm::outs() << "class \"" + template_[0] + "\"<" + template_[1] +
-                            "> {\n}\n";
-
-        db.execute("SELECT instance FROM template_inst WHERE template = '" +
-                   template_[0] + "'");
-        for (const auto& row: db.rows) {
-          llvm::outs() << "\"" + row[0] + "\" ..|> \"" + template_[0] +
-                              "\" : <<bind>>\n";
-        }
-      }
-    }
-  }
-}
-
-template <> void reportInheritance<plantuml>(const DB &db) {
-  if (not db.execute("SELECT derived, base FROM inheritance"))
-    return;
-  for (const auto& row: db.rows) {
-    assert(row.size() == 2);
-    llvm::outs() << "\"" + row[0] << "\" --|> \"" << row[1] << "\"\n";
-  }
-}
-
-template <> void reportBegin<dot>(const DB&) {
-  llvm::outs() << "digraph G {\n";
-}
-
-template <> void reportEnd<dot>(const DB&) {
-  llvm::outs() << "}\n";
-}
-
-template <> void reportInheritance<dot>(const DB &db) {
-  if (not db.execute("SELECT derived, base FROM inheritance"))
-    return;
-
-  for (const auto& row : db.rows ) {
-    assert(row.size() == 2);
-
-    llvm::outs() << row[0] << " -> " << row[1] << "\n";
-  }
-}
-
-template <> void reportClasses<dot>(const DB &db) {
-  if (not db.execute("SELECT DISTINCT namespace FROM classes"))
-    return;
-
-  const auto namespace_rows = db.rows;
-
-  for (size_t i = 0; i < namespace_rows.size(); ++i) {
-    const auto &ns = namespace_rows[i][0];
-    llvm::outs() << "subgraph cluster_" << std::to_string(i) << "{\n";
-    llvm::outs() << "label = \"" << ns << "\"\n";
-    if (not db.execute("SELECT name FROM classes WHERE namespace = '" + ns +
-                       "'"))
-      return;
-    for (const auto& row: db.rows) {
-      const auto& class_ = row[0];
-      llvm::outs() << class_ << ";\n";
-    }
-
-    llvm::outs() << "}\n";
-  }
-}
-
-template <ReportType T> void report(const DB &db) {
-  reportBegin<T>(db);
-  reportClasses<T>(db);
-  reportInheritance<T>(db);
-  reportEnd<T>(db);
-}
 } // end anonymous namespace
 
 int main(int argc, const char **argv) {
@@ -530,18 +276,9 @@ int main(int argc, const char **argv) {
   const auto frontend_result =
       Tool.run(newFrontendActionFactory(&Finder).get());
 
-  const auto format = plantuml;
-  switch (format) {
-  case sqlite: {
-    report<sqlite>(db);
-  } break;
-  case dot: {
-    report<dot>(db);
-  } break;
-  case plantuml: {
-    report<plantuml>(db);
-  } break;
-  }
+  report(db, {.documentOwns  = DocumentOwns.getValue(),
+              .documentUses  = DocumentUses.getValue(),
+              .documentBinds = DocumentBinds.getValue()});
 
   return frontend_result;
 }

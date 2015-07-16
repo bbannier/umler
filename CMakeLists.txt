@@ -2,7 +2,11 @@ set(LLVM_LINK_COMPONENTS
   Support
 )
 
-add_clang_executable(umler Umler.cpp)
+add_clang_executable(umler
+  Report.cpp
+  DB.cpp
+  Umler.cpp
+)
 
 target_link_libraries(umler
   sqlite3
