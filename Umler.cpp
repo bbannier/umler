@@ -150,9 +150,14 @@ bool recordClass(const CXXRecordDecl *cl, const DB &db) {
     if (method->isImplicit())
       continue;
     const auto &method_name = method->getNameAsString();
-    const auto& returns = className(method->getReturnType());
-    db.execute("INSERT OR IGNORE INTO uses(user, object) VALUES ('" +
-               class_name + "','" + returns + "')");
+    const auto& return_type = method->getReturnType();
+    const auto & returns = className(return_type);
+    // do never document boring void types
+    if (not return_type->isVoidType() and
+        not return_type->isVoidPointerType()) {
+      db.execute("INSERT OR IGNORE INTO uses(user, object) VALUES ('" +
+                 class_name + "','" + returns + "')");
+    }
 
     const auto access = std::to_string(method->getAccess());
 
