@@ -42,7 +42,11 @@ The infrastructure will automatically find the compilation database if it is
 located in the current directory or any of its source directories.
 
 Umler will then dump a [plantuml](http://plantuml.sourceforge.net/) description
-of the parsed classes to stdout.
+of the parsed classes to stdout. The information to be dumped can be adjusted
+
+* `-document-uses` document *uses* relationships
+* `-document-owns` document *owns* relationships
+* `-document-binds` document *binds* relationships
 
 To persist the parse result the internal database can be dumped with `-d`
 
