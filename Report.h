@@ -7,6 +7,7 @@ struct ReportKind {
   bool documentOwns;
   bool documentUses;
   bool documentBinds;
+  bool documentMethods;
 };
 
 void report(const DB &db, const ReportKind& kind);

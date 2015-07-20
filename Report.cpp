@@ -44,31 +44,35 @@ template <> void reportClasses<plantuml>(const DB &db, const ReportKind& kind) {
       const auto& class_ = row[0];
       llvm::outs() << "class \"" + class_ + "\" {\n";
 
-      db.execute("SELECT name, parameters, returns, access, static, abstract FROM methods WHERE class='" +
-                 class_ + "'");
-      for (const auto& method : db.rows) {
-        std::string access = "";
-        switch (std::stoi(method[3])) {
-        case clang::AS_public: {
-          access = "+";
-        } break;
-        case clang::AS_private: {
-          access = "-";
-        } break;
-        case clang::AS_protected: {
-          access = "#";
-        } break;
-        case clang::AS_none:
-          break;
+      if (kind.documentMethods) {
+        db.execute("SELECT name, parameters, returns, access, static, abstract "
+                   "FROM methods WHERE class='" +
+                   class_ + "'");
+        for (const auto &method : db.rows) {
+          std::string access = "";
+          switch (std::stoi(method[3])) {
+          case clang::AS_public: {
+            access = "+";
+          } break;
+          case clang::AS_private: {
+            access = "-";
+          } break;
+          case clang::AS_protected: {
+            access = "#";
+          } break;
+          case clang::AS_none:
+            break;
+          }
+
+          const std::string is_static = std::stoi(method[4]) ? "{static}" : "";
+          const std::string is_abstract =
+              std::stoi(method[5]) ? "{abstract}" : "";
+          const auto modifiers = is_static + is_abstract;
+
+          const auto returns = method[2] == "void" ? "" : method[2];
+          llvm::outs() << "  " + access + returns + " " + method[0] + "(" +
+                              method[1] + ")" + " " + modifiers + "\n";
         }
-
-        const std::string is_static = std::stoi(method[4]) ? "{static}" : "";
-        const std::string is_abstract = std::stoi(method[5]) ? "{abstract}" : "";
-        const auto modifiers = is_static + is_abstract;
-
-        const auto returns = method[2] == "void" ? "" : method[2];
-        llvm::outs() << "  " + access + returns + " " + method[0] + "(" +
-                            method[1] + ")" + " " + modifiers + "\n";
       }
       llvm::outs() << "}\n";
 

@@ -52,6 +52,9 @@ static cl::opt<bool> DocumentOwns("document-owns",
 static cl::opt<bool> DocumentBinds("document-binds",
                                   cl::desc("show binds relationships"),
                                   cl::init(false), cl::cat(UmlerCategory));
+static cl::opt<bool> DocumentMethods("document-methods",
+                                     cl::desc("show class methods"),
+                                     cl::init(true), cl::cat(UmlerCategory));
 
 struct BaseCallbackData {
   const CXXRecordDecl* derived;
@@ -281,9 +284,10 @@ int main(int argc, const char **argv) {
   const auto frontend_result =
       Tool.run(newFrontendActionFactory(&Finder).get());
 
-  report(db, {.documentOwns  = DocumentOwns.getValue(),
-              .documentUses  = DocumentUses.getValue(),
-              .documentBinds = DocumentBinds.getValue()});
+  report(db, {.documentOwns = DocumentOwns.getValue(),
+              .documentUses = DocumentUses.getValue(),
+              .documentBinds = DocumentBinds.getValue(),
+              .documentMethods = DocumentMethods.getValue()});
 
   return frontend_result;
 }
