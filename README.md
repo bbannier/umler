@@ -44,9 +44,10 @@ located in the current directory or any of its source directories.
 Umler will then dump a [plantuml](http://plantuml.sourceforge.net/) description
 of the parsed classes to stdout. The information to be dumped can be adjusted
 
-* `-document-uses` document *uses* relationships
-* `-document-owns` document *owns* relationships
-* `-document-binds` document *binds* relationships
+* `-document-uses`: document *uses* relationships (default: `false`)
+* `-document-owns`: document *owns* relationships (default: `false`)
+* `-document-binds`: document *binds* relationships (default: `false`)
+* `-document-methods`: document class methods (default: `true`)
 
 To persist the parse result the internal database can be dumped with `-d`
 
