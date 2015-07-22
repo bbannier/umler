@@ -255,6 +255,41 @@ public:
   const DB& db;
 };
 
+/// helper for build_nested_namespace_matchers
+template <typename Iterable>
+auto helper_build_nested_namespace_matchers(const StringRef &head,
+                                            const Iterable &tail)
+    -> decltype(namespaceDecl()) {
+  if (not tail.size()) { // bottom condition
+    return namespaceDecl(hasName(head.str()));
+  }
+
+  const auto& new_head = *tail.begin();
+  const auto new_tail = Iterable(std::next(tail.begin()), tail.end());
+
+  return namespaceDecl(
+      hasName(head.str()),
+      hasAncestor(helper_build_nested_namespace_matchers(new_head, new_tail)));
+}
+
+/// build a matcher from a list of namespaces
+//
+/// e.g. given a list {"n1", "n2", "n3"} this would match
+/// namespace n1 { namespace n2 { namespace n3 /* MATCH */ { } } }
+///
+/// @param namespaces a non-empty iterable of namespace name strings
+/// @pre namespaces is not empty
+/// @returns a matcher for the most nested name
+template <typename Iterable>
+auto build_nested_namespace_matchers(const Iterable &namespaces)
+    -> decltype(namespaceDecl()) {
+  // we iterate over the names reversed to build the matcher from the bottom up
+  const auto &head = *namespaces.rbegin();
+  const auto tail = Iterable(std::next(namespaces.rbegin()), namespaces.rend());
+
+  return helper_build_nested_namespace_matchers(head, tail);
+}
+
 } // end anonymous namespace
 
 int main(int argc, const char **argv) {
@@ -274,10 +309,29 @@ int main(int argc, const char **argv) {
         &Callback);
   } else {
     for (const auto &name : ClassName) {
-      Finder.addMatcher(
-          recordDecl(hasName(name), isDefinition(), unless(isImplicit()))
-          .bind("node"),
-          &Callback);
+      // build a vector of namespaces this class is nested under
+      SmallVector<StringRef, 1000> namespaces;
+      StringRef(name).split(namespaces, "::"); // we split at `::`
+      namespaces.pop_back(); // last element is always a class name
+      namespaces.erase(
+          std::remove_if(namespaces.begin(), namespaces.end(),
+                         [](const StringRef &s) { return s.empty(); }),
+          namespaces
+              .end()); // remove empty ns names, e.g. from a ::ns::ClassName
+
+      if (not namespaces.size()) {
+        Finder.addMatcher(
+            recordDecl(hasName(name), isDefinition(), unless(isImplicit()))
+                .bind("node"),
+            &Callback);
+      } else {
+        auto namespace_matcher = build_nested_namespace_matchers(namespaces);
+        Finder.addMatcher(recordDecl(hasName(name), isDefinition(),
+                                     unless(isImplicit()),
+                                     hasAncestor(namespace_matcher))
+                              .bind("node"),
+                          &Callback);
+      }
     }
   }
 
