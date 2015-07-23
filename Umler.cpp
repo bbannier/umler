@@ -290,6 +290,26 @@ auto build_nested_namespace_matchers(const Iterable &namespaces)
   return helper_build_nested_namespace_matchers(head, tail);
 }
 
+/// extract the namespaces in some class name
+/// @param full_name the class name, possibly including namespaces
+SmallVector<StringRef, 1000>
+extract_namespace_components(const StringRef &full_name) {
+  decltype(extract_namespace_components("")) namespaces;
+
+  // we split at `::`
+  full_name.split(namespaces, "::");
+
+  // last element is always a class name
+  namespaces.pop_back();
+
+  // remove empty ns names, e.g. from a ::ns::ClassName
+  namespaces.erase(std::remove_if(namespaces.begin(), namespaces.end(),
+                                  [](const StringRef &s) { return s.empty(); }),
+                   namespaces.end());
+
+  return namespaces;
+}
+
 } // end anonymous namespace
 
 int main(int argc, const char **argv) {
@@ -309,16 +329,7 @@ int main(int argc, const char **argv) {
         &Callback);
   } else {
     for (const auto &name : ClassName) {
-      // build a vector of namespaces this class is nested under
-      SmallVector<StringRef, 1000> namespaces;
-      StringRef(name).split(namespaces, "::"); // we split at `::`
-      namespaces.pop_back(); // last element is always a class name
-      namespaces.erase(
-          std::remove_if(namespaces.begin(), namespaces.end(),
-                         [](const StringRef &s) { return s.empty(); }),
-          namespaces
-              .end()); // remove empty ns names, e.g. from a ::ns::ClassName
-
+      const auto namespaces = extract_namespace_components(name);
       if (not namespaces.size()) {
         Finder.addMatcher(
             recordDecl(hasName(name), isDefinition(), unless(isImplicit()))
