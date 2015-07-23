@@ -61,6 +61,10 @@ struct BaseCallbackData {
   const DB* db;
 };
 
+/// obtain name from some class-like entity
+///
+/// declared as a template to inhibit conversion
+/// @param v the class-like entity to work on
 template <typename T> std::string className(const T &);
 template <> std::string className<CXXRecordDecl>(const CXXRecordDecl&);
 template <> std::string className<QualType>(const QualType&);
