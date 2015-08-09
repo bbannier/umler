@@ -17,7 +17,7 @@ Required dependencies:
 * a compiler able to build basic C++11, gcc-4.7 or clang-3.4 seem sufficient
 * libsqlite with headers (probably in some dev package)
 
-This tool needs to be checked out below the `extra` tree of clang in a full
+This tool needs to be checked out below the `extra` tree of clang-3.8 in a full
 checkout (`llvm/tools/clang/tools/extra`).  After that it can be built as part
 of a normal LLVM/clang build, see `build.sh` for an example.
 

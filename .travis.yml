@@ -5,9 +5,6 @@ compiler:
 
 env:
   - LLVM_BRANCH=master
-  - LLVM_BRANCH=release_35
-  - LLVM_BRANCH=release_36
-  - LLVM_BRANCH=release_37
 
 sudo: required
 before_install:

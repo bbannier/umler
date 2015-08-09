@@ -208,12 +208,11 @@ bool recordClass(const CXXRecordDecl *cl, const DB &db) {
   return true;
 }
 
-bool recordBases(const CXXRecordDecl *base, void *p) {
-  const auto data = reinterpret_cast<const BaseCallbackData*>(p);
-  const auto derived = data->derived;
+bool recordBases(const CXXRecordDecl *base, const BaseCallbackData &data) {
+  const auto derived = data.derived;
   assert(derived);
 
-  recordClass(base, *data->db);
+  recordClass(base, *data.db);
 
   const auto is_direct_base = [](const CXXRecordDecl *base,
                                  const CXXRecordDecl *derived) {
@@ -228,11 +227,11 @@ bool recordBases(const CXXRecordDecl *base, void *p) {
   };
 
   if (is_direct_base(base, derived)) {
-    data->db->execute(
+    data.db->execute(
         "INSERT OR IGNORE INTO inheritance (derived, base) VALUES ('" +
         className(*derived) + "','" + className(*base) + "')");
-    const auto new_data = BaseCallbackData{base, data->db};
-    base->forallBases(recordBases, const_cast<BaseCallbackData *>(&new_data));
+    const auto new_data = BaseCallbackData{base, data.db};
+    base->forallBases([&new_data](const CXXRecordDecl* base) { return recordBases(base, new_data);});
   }
 
   return true;
@@ -240,7 +239,8 @@ bool recordBases(const CXXRecordDecl *base, void *p) {
 
 void walkHierarchy(const CXXRecordDecl *derived, const DB &db) {
   const auto data = BaseCallbackData{derived, &db};
-  derived->forallBases(recordBases, const_cast<BaseCallbackData *>(&data));
+  derived->forallBases(
+      [&data](const CXXRecordDecl *base) { return recordBases(base, data); });
 
   recordClass(derived, db);
 }
