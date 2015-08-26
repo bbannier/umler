@@ -120,12 +120,14 @@ bool recordClass(const CXXRecordDecl *cl, const DB &db) {
   std::string ns_name = "";
   {
     auto context = cl->getEnclosingNamespaceContext();
-    while (true) {
-      const auto name = dyn_cast<NamespaceDecl>(context)->getNameAsString();
-      ns_name = name + "::";
-      if (context == cl->getEnclosingNamespaceContext())
+    while (not context->isFileContext()) {
+      if (const auto ns = dyn_cast<NamespaceDecl>(context)) {
+        const auto name = ns->getNameAsString();
+        ns_name = name + "::";
+        context = context->getEnclosingNamespaceContext();
+      } else {
         break;
-      context = context->getEnclosingNamespaceContext();
+      }
     }
     ns_name = ns_name.substr(0, ns_name.size() - 2);
   }
