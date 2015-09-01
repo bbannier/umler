@@ -65,7 +65,7 @@ struct BaseCallbackData {
 ///
 /// declared as a template to inhibit conversion
 /// @param v the class-like entity to work on
-template <typename T> std::string className(const T &);
+template <typename T> std::string className(const T &v);
 template <> std::string className<CXXRecordDecl>(const CXXRecordDecl&);
 template <> std::string className<QualType>(const QualType&);
 template <> std::string className<TemplateArgument>(const TemplateArgument&);
