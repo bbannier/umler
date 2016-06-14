@@ -319,7 +319,7 @@ extract_namespace_components(const StringRef &full_name) {
 } // end anonymous namespace
 
 int main(int argc, const char **argv) {
-  llvm::sys::PrintStackTraceOnErrorSignal();
+  llvm::sys::PrintStackTraceOnErrorSignal(argv[0]);
   CommonOptionsParser OptionsParser(argc, argv, UmlerCategory);
   RefactoringTool Tool(OptionsParser.getCompilations(),
                        OptionsParser.getSourcePathList());
