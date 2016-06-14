@@ -8,11 +8,10 @@ env:
 
 sudo: required
 before_install:
-  - sudo add-apt-repository ppa:smspillaz/cmake-2.8.12 -y
   - sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
   - sudo apt-get update
 install: 
-  - sudo apt-get install -y cmake cmake-data gcc-4.7 g++-4.7 libgcc-4.7-dev libatomic1
+  - sudo apt-get install -y gcc-4.7 g++-4.7 libgcc-4.7-dev libatomic1
   - sudo rm /usr/bin/gcc /usr/bin/g++
   - sudo ln -s /usr/bin/gcc-4.7 /usr/bin/gcc
   - sudo ln -s /usr/bin/g++-4.7 /usr/bin/g++
