@@ -172,7 +172,7 @@ bool recordClass(const CXXRecordDecl *cl, const DB &db) {
 
     std::string parameters;
     for (unsigned i = 0; i < method->getNumParams(); ++i) {
-      const auto &param = method->getParamDecl(0);
+      const auto &param = method->getParamDecl(i);
       if (i > 0)
         parameters += ", ";
       parameters +=
