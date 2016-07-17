@@ -15,4 +15,4 @@ echo 'add_subdirectory(umler)' >> llvm/tools/clang/tools/extra/CMakeLists.txt
 mkdir llvm/build
 pushd llvm/build
 cmake ..
-make -j4 umler
+make -j`nproc` umler
