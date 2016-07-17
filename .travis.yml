@@ -3,6 +3,8 @@ compiler:
   - clang
   - gcc
 
+dist: trusty
+
 env:
   - LLVM_BRANCH=master
 
