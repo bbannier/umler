@@ -6,14 +6,6 @@ compiler:
 env:
   - LLVM_BRANCH=master
 
-addons:
-  apt:
-    sources:
-      - george-edison55-precise-backports # cmake 3.2.3/doxygen 1.8.3
-    packages:
-      - cmake
-      - cmake-data
-
 cache:
     ccache: true
     directories:
@@ -22,9 +14,10 @@ cache:
 sudo: required
 before_install:
   - sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
+  - sudo add-apt-repository ppa:george-edison55/cmake-3.x -y
   - sudo apt-get update
 install: 
-  - sudo apt-get --no-install-suggests --no-install-recommends --force-yes -yq install gcc-4.9 g++-4.9 libgcc-4.9-dev libatomic1
+  - sudo apt-get --no-install-suggests --no-install-recommends --force-yes -yq install gcc-4.9 g++-4.9 libgcc-4.9-dev libatomic1 cmake cmake-data
   - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.9 90
   - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.9 90
 
