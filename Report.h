@@ -4,12 +4,12 @@
 class DB;
 
 struct ReportKind {
-  bool documentOwns;
-  bool documentUses;
-  bool documentBinds;
-  bool documentMethods;
+  bool DocumentOwns;
+  bool DocumentUses;
+  bool DocumentBinds;
+  bool DocumentMethods;
 };
 
-void report(const DB &db, const ReportKind& kind);
+void report(const DB &Db, const ReportKind &Kind);
 
-#endif  // REPORT_H
+#endif // REPORT_H

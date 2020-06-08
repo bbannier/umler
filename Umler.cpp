@@ -61,152 +61,153 @@ static cl::opt<bool> DocumentMethods("document-methods",
                                      cl::init(true), cl::cat(UmlerCategory));
 
 struct BaseCallbackData {
-  const CXXRecordDecl *derived;
-  const DB *db;
+  const CXXRecordDecl *Derived;
+  const DB *Db;
 };
 
 /// obtain name from some class-like entity
 ///
 /// declared as a template to inhibit conversion
 /// @param v the class-like entity to work on
-template <typename T> std::string className(const T &v);
+template <typename T> std::string className(const T &V);
 template <> std::string className<CXXRecordDecl>(const CXXRecordDecl &);
 template <> std::string className<QualType>(const QualType &);
 template <> std::string className<TemplateArgument>(const TemplateArgument &);
 
-template <> std::string className<CXXRecordDecl>(const CXXRecordDecl &cl) {
-  if (const auto t = dyn_cast_or_null<ClassTemplateSpecializationDecl>(&cl)) {
-    std::string name = cl.getNameAsString();
-    name += "<";
-    const auto &args = t->getTemplateArgs();
+template <> std::string className<CXXRecordDecl>(const CXXRecordDecl &Cl) {
+  if (const auto *const T =
+          dyn_cast_or_null<ClassTemplateSpecializationDecl>(&Cl)) {
+    std::string Name = Cl.getNameAsString();
+    Name += "<";
+    const auto &Args = T->getTemplateArgs();
 
-    for (unsigned i = 0; i < args.size(); ++i) {
-      if (i > 0)
-        name += ", ";
-      name += className(args.get(i));
+    for (unsigned I = 0; I < Args.size(); ++I) {
+      if (I > 0)
+        Name += ", ";
+      Name += className(Args.get(I));
     }
-    name += ">";
+    Name += ">";
 
-    return name;
+    return Name;
   }
 
-  return cl.getNameAsString();
+  return Cl.getNameAsString();
 }
-template <> std::string className<QualType>(const QualType &t) {
-  const auto &tp = t.getTypePtrOrNull();
-  if (tp->isReferenceType() or tp->isPointerType()) {
-    return className(tp->getPointeeType());
-  } else if (const auto cl = tp->getAsCXXRecordDecl()) {
-    return className(*cl);
+template <> std::string className<QualType>(const QualType &T) {
+  const auto &Tp = T.getTypePtrOrNull();
+  if (Tp->isReferenceType() or Tp->isPointerType()) {
+    return className(Tp->getPointeeType());
+  } else if (auto *const Cl = Tp->getAsCXXRecordDecl()) {
+    return className(*Cl);
   }
-  return t.getAsString();
+  return T.getAsString();
 }
-template <> std::string className<TemplateArgument>(const TemplateArgument &a) {
-  switch (a.getKind()) {
+template <> std::string className<TemplateArgument>(const TemplateArgument &A) {
+  switch (A.getKind()) {
   case clang::TemplateArgument::Null:
     return "NULL";
   case clang::TemplateArgument::Type:
-    return className(a.getAsType());
+    return className(A.getAsType());
   case clang::TemplateArgument::Integral:
-    return std::to_string(*a.getAsIntegral().getRawData());
+    return std::to_string(*A.getAsIntegral().getRawData());
   default: // FIXME
     llvm::errs() << "No idea how to print TemplateArgument kind " +
-                        std::to_string(a.getKind()) + "\n";
+                        std::to_string(A.getKind()) + "\n";
     return "";
   }
 }
 
-bool recordClass(const CXXRecordDecl *cl, const DB &db) {
-  const auto class_name = className(*cl);
-  if (class_name.empty())
+bool recordClass(const CXXRecordDecl *Cl, const DB &Db) {
+  const auto ClassName = className(*Cl);
+  if (ClassName.empty())
     return false;
 
-  std::string ns_name = "";
+  std::string NsName = "";
   {
-    auto context = cl->getEnclosingNamespaceContext();
-    while (not context->isFileContext()) {
-      if (const auto ns = dyn_cast<NamespaceDecl>(context)) {
-        const auto name = ns->getNameAsString();
-        ns_name = name + "::";
-        context = context->getEnclosingNamespaceContext();
+    const auto *Context = Cl->getEnclosingNamespaceContext();
+    while (not Context->isFileContext()) {
+      if (const auto *const Ns = dyn_cast<NamespaceDecl>(Context)) {
+        const auto Name = Ns->getNameAsString();
+        NsName = Name + "::";
+        Context = Context->getEnclosingNamespaceContext();
       } else {
         break;
       }
     }
-    ns_name = ns_name.substr(0, ns_name.size() - 2);
+    NsName = NsName.substr(0, NsName.size() - 2);
   }
 
-  db.execute("INSERT OR IGNORE INTO classes (name, namespace) VALUES ('" +
-             class_name + "','" + ns_name + "');");
+  Db.execute("INSERT OR IGNORE INTO classes (name, namespace) VALUES ('" +
+             ClassName + "','" + NsName + "');");
 
-  if (const auto inst = dyn_cast_or_null<ClassTemplateSpecializationDecl>(cl)) {
+  if (const auto *const Inst =
+          dyn_cast_or_null<ClassTemplateSpecializationDecl>(Cl)) {
     // extract a string for the template parameters
-    std::string tmpl_args = "";
-    if (const auto tmpl = inst->getSpecializedTemplate()) {
-      if (const auto tmpl_para = tmpl->getTemplateParameters()) {
-        for (unsigned i = 0; i < tmpl_para->size(); ++i) {
-          if (i > 0) {
-            tmpl_args += ", ";
+    std::string TmplArgs = "";
+    if (auto *const Tmpl = Inst->getSpecializedTemplate()) {
+      if (auto *const TmplPara = Tmpl->getTemplateParameters()) {
+        for (unsigned I = 0; I < TmplPara->size(); ++I) {
+          if (I > 0) {
+            TmplArgs += ", ";
           }
-          tmpl_args += tmpl_para->getParam(i)->getNameAsString();
+          TmplArgs += TmplPara->getParam(I)->getNameAsString();
         }
       }
     }
-    db.execute("INSERT OR IGNORE INTO template_inst (instance, template, "
+    Db.execute("INSERT OR IGNORE INTO template_inst (instance, template, "
                "template_args)"
                "VALUES ('" +
-               class_name + "','" + inst->getNameAsString() + "','" +
-               tmpl_args + "')");
+               ClassName + "','" + Inst->getNameAsString() + "','" + TmplArgs +
+               "')");
   }
 
-  for (const auto &method : cl->methods()) {
-    if (method->isImplicit())
+  for (const auto &Method : Cl->methods()) {
+    if (Method->isImplicit())
       continue;
-    const auto &method_name = method->getNameAsString();
-    const auto &return_type = method->getReturnType();
-    const auto &returns = className(return_type);
+    const auto &MethodName = Method->getNameAsString();
+    const auto &ReturnType = Method->getReturnType();
+    const auto &Returns = className(ReturnType);
     // do never document boring void types
-    if (not return_type->isVoidType() and
-        not return_type->isVoidPointerType()) {
-      db.execute("INSERT OR IGNORE INTO uses(user, object) VALUES ('" +
-                 class_name + "','" + returns + "')");
+    if (not ReturnType->isVoidType() and not ReturnType->isVoidPointerType()) {
+      Db.execute("INSERT OR IGNORE INTO uses(user, object) VALUES ('" +
+                 ClassName + "','" + Returns + "')");
     }
 
-    const auto access = std::to_string(method->getAccess());
+    const auto Access = std::to_string(Method->getAccess());
 
-    std::string parameters;
-    for (unsigned i = 0; i < method->getNumParams(); ++i) {
-      const auto &param = method->getParamDecl(i);
-      if (i > 0)
-        parameters += ", ";
-      parameters +=
-          className(param->getType()) + " " + param->getNameAsString();
-      db.execute("INSERT OR IGNORE INTO uses(user, object) VALUES ('" +
-                 class_name + "','" + className(param->getType()) + "')");
+    std::string Parameters;
+    for (unsigned I = 0; I < Method->getNumParams(); ++I) {
+      const auto &Param = Method->getParamDecl(I);
+      if (I > 0)
+        Parameters += ", ";
+      Parameters +=
+          className(Param->getType()) + " " + Param->getNameAsString();
+      Db.execute("INSERT OR IGNORE INTO uses(user, object) VALUES ('" +
+                 ClassName + "','" + className(Param->getType()) + "')");
     }
 
-    const std::string is_static = std::to_string(method->isStatic());
-    const std::string is_abstract = std::to_string(method->isPure());
+    const std::string IsStatic = std::to_string(Method->isStatic());
+    const std::string IsAbstract = std::to_string(Method->isPure());
 
-    if (not db.execute("INSERT OR IGNORE INTO methods (class, name, returns, "
+    if (not Db.execute("INSERT OR IGNORE INTO methods (class, name, returns, "
                        "parameters, access, static, abstract) VALUES ('" +
-                       class_name + "','" + method_name + "','" + returns +
-                       "','" + parameters + "'," + access + "," + is_static +
-                       "," + is_abstract + ");"))
+                       ClassName + "','" + MethodName + "','" + Returns +
+                       "','" + Parameters + "'," + Access + "," + IsStatic +
+                       "," + IsAbstract + ");"))
       return false;
   }
 
   // record member variables
-  for (const auto &field : cl->fields()) {
-    if (field->isImplicit())
+  for (const auto &Field : Cl->fields()) {
+    if (Field->isImplicit())
       continue;
-    if (const auto d = field->getType()->getAsCXXRecordDecl()) {
-      const auto &field_type = className(*d);
-      const auto &field_name = field->getNameAsString();
+    if (auto *const D = Field->getType()->getAsCXXRecordDecl()) {
+      const auto &FieldType = className(*D);
+      const auto &FieldName = Field->getNameAsString();
 
-      if (not db.execute(
+      if (not Db.execute(
               "INSERT OR IGNORE INTO owns (owner, object, name) VALUES ('" +
-              className(*cl) + "','" + field_type + "','" + field_name + "')"))
+              className(*Cl) + "','" + FieldType + "','" + FieldName + "')"))
         return false;
     }
   }
@@ -214,74 +215,73 @@ bool recordClass(const CXXRecordDecl *cl, const DB &db) {
   return true;
 }
 
-bool recordBases(const CXXRecordDecl *base, const BaseCallbackData &data) {
-  const auto derived = data.derived;
-  assert(derived);
+bool recordBases(const CXXRecordDecl *Base, const BaseCallbackData &Data) {
+  const auto *const Derived = Data.Derived;
+  assert(Derived);
 
-  recordClass(base, *data.db);
+  recordClass(Base, *Data.Db);
 
-  const auto is_direct_base = [](const CXXRecordDecl *base,
-                                 const CXXRecordDecl *derived) {
-    return std::find_if(
-               derived->bases_begin(), derived->bases_end(),
-               [&base](const CXXBaseSpecifier &base_sp) {
-                 const auto &name1 =
-                     base_sp.getType()->getAsCXXRecordDecl()->getName();
-                 const auto &name2 = base->getName();
-                 return name1 == name2;
-               }) != derived->bases_end();
+  const auto IsDirectBase = [](const CXXRecordDecl *Base,
+                               const CXXRecordDecl *Derived) {
+    return std::find_if(Derived->bases_begin(), Derived->bases_end(),
+                        [&Base](const CXXBaseSpecifier &BaseSp) {
+                          const auto &Name1 =
+                              BaseSp.getType()->getAsCXXRecordDecl()->getName();
+                          const auto &Name2 = Base->getName();
+                          return Name1 == Name2;
+                        }) != Derived->bases_end();
   };
 
-  if (is_direct_base(base, derived)) {
-    data.db->execute(
+  if (IsDirectBase(Base, Derived)) {
+    Data.Db->execute(
         "INSERT OR IGNORE INTO inheritance (derived, base) VALUES ('" +
-        className(*derived) + "','" + className(*base) + "')");
-    const auto new_data = BaseCallbackData{base, data.db};
-    base->forallBases([&new_data](const CXXRecordDecl *base) {
-      return recordBases(base, new_data);
+        className(*Derived) + "','" + className(*Base) + "')");
+    const auto NewData = BaseCallbackData{Base, Data.Db};
+    Base->forallBases([&NewData](const CXXRecordDecl *Base) {
+      return recordBases(Base, NewData);
     });
   }
 
   return true;
 }
 
-void walkHierarchy(const CXXRecordDecl *derived, const DB &db) {
-  const auto data = BaseCallbackData{derived, &db};
-  derived->forallBases(
-      [&data](const CXXRecordDecl *base) { return recordBases(base, data); });
+void walkHierarchy(const CXXRecordDecl *Derived, const DB &Db) {
+  const auto Data = BaseCallbackData{Derived, &Db};
+  Derived->forallBases(
+      [&Data](const CXXRecordDecl *Base) { return recordBases(Base, Data); });
 
-  recordClass(derived, db);
+  recordClass(Derived, Db);
 }
 
 class UmlerCallback : public MatchFinder::MatchCallback {
 public:
-  explicit UmlerCallback(const DB &db) : db(db) {}
+  explicit UmlerCallback(const DB &Db) : Db(Db) {}
 
   void run(const MatchFinder::MatchResult &Result) override {
-    const auto node = Result.Nodes.getNodeAs<CXXRecordDecl>("node");
+    const auto *const Node = Result.Nodes.getNodeAs<CXXRecordDecl>("node");
 
-    walkHierarchy(node, db);
+    walkHierarchy(Node, Db);
   }
 
   // private:
-  const DB &db;
+  const DB &Db;
 };
 
 /// helper for build_nested_namespace_matchers
 template <typename Iterable>
-auto helper_build_nested_namespace_matchers(const StringRef &head,
-                                            const Iterable &tail)
+auto helperBuildNestedNamespaceMatchers(const StringRef &Head,
+                                        const Iterable &Tail)
     -> decltype(namespaceDecl()) {
-  if (not tail.size()) { // bottom condition
-    return namespaceDecl(hasName(head.str()));
+  if (not Tail.size()) { // bottom condition
+    return namespaceDecl(hasName(Head.str()));
   }
 
-  const auto &new_head = *tail.begin();
-  const auto new_tail = Iterable(std::next(tail.begin()), tail.end());
+  const auto &NewHead = *Tail.begin();
+  const auto NewTail = Iterable(std::next(Tail.begin()), Tail.end());
 
   return namespaceDecl(
-      hasName(head.str()),
-      hasAncestor(helper_build_nested_namespace_matchers(new_head, new_tail)));
+      hasName(Head.str()),
+      hasAncestor(helperBuildNestedNamespaceMatchers(NewHead, NewTail)));
 }
 
 /// build a matcher from a list of namespaces
@@ -293,33 +293,33 @@ auto helper_build_nested_namespace_matchers(const StringRef &head,
 /// @pre namespaces is not empty
 /// @returns a matcher for the most nested name
 template <typename Iterable>
-auto build_nested_namespace_matchers(const Iterable &namespaces)
+auto buildNestedNamespaceMatchers(const Iterable &Namespaces)
     -> decltype(namespaceDecl()) {
   // we iterate over the names reversed to build the matcher from the bottom up
-  const auto &head = *namespaces.rbegin();
-  const auto tail = Iterable(std::next(namespaces.rbegin()), namespaces.rend());
+  const auto &Head = *Namespaces.rbegin();
+  const auto Tail = Iterable(std::next(Namespaces.rbegin()), Namespaces.rend());
 
-  return helper_build_nested_namespace_matchers(head, tail);
+  return helperBuildNestedNamespaceMatchers(Head, Tail);
 }
 
 /// extract the namespaces in some class name
 /// @param full_name the class name, possibly including namespaces
 SmallVector<StringRef, 1000>
-extract_namespace_components(const StringRef &full_name) {
-  decltype(extract_namespace_components("")) namespaces;
+extractNamespaceComponents(const StringRef &FullName) {
+  decltype(extractNamespaceComponents("")) Namespaces;
 
   // we split at `::`
-  full_name.split(namespaces, "::");
+  FullName.split(Namespaces, "::");
 
   // last element is always a class name
-  namespaces.pop_back();
+  Namespaces.pop_back();
 
   // remove empty ns names, e.g. from a ::ns::ClassName
-  namespaces.erase(std::remove_if(namespaces.begin(), namespaces.end(),
-                                  [](const StringRef &s) { return s.empty(); }),
-                   namespaces.end());
+  Namespaces.erase(std::remove_if(Namespaces.begin(), Namespaces.end(),
+                                  [](const StringRef &S) { return S.empty(); }),
+                   Namespaces.end());
 
-  return namespaces;
+  return Namespaces;
 }
 
 } // end anonymous namespace
@@ -331,8 +331,8 @@ int main(int argc, const char **argv) {
                        OptionsParser.getSourcePathList());
   ast_matchers::MatchFinder Finder;
 
-  const auto db = DB{DBPath.getValue()};
-  auto Callback = UmlerCallback{db};
+  const auto Db = DB{DBPath.getValue()};
+  auto Callback = UmlerCallback{Db};
 
   if (ClassName.empty()) {
     Finder.addMatcher(
@@ -340,31 +340,30 @@ int main(int argc, const char **argv) {
             .bind("node"),
         &Callback);
   } else {
-    for (const auto &name : ClassName) {
-      const auto namespaces = extract_namespace_components(name);
-      if (not namespaces.size()) {
+    for (const auto &Name : ClassName) {
+      const auto Namespaces = extractNamespaceComponents(Name);
+      if (not Namespaces.size()) {
         Finder.addMatcher(
-            recordDecl(hasName(name), isDefinition(), unless(isImplicit()))
+            recordDecl(hasName(Name), isDefinition(), unless(isImplicit()))
                 .bind("node"),
             &Callback);
       } else {
-        auto namespace_matcher = build_nested_namespace_matchers(namespaces);
-        Finder.addMatcher(recordDecl(hasName(name), isDefinition(),
+        auto NamespaceMatcher = buildNestedNamespaceMatchers(Namespaces);
+        Finder.addMatcher(recordDecl(hasName(Name), isDefinition(),
                                      unless(isImplicit()),
-                                     hasAncestor(namespace_matcher))
+                                     hasAncestor(NamespaceMatcher))
                               .bind("node"),
                           &Callback);
       }
     }
   }
 
-  const auto frontend_result =
-      Tool.run(newFrontendActionFactory(&Finder).get());
+  const auto FrontendResult = Tool.run(newFrontendActionFactory(&Finder).get());
 
-  report(db, {.documentOwns = DocumentOwns.getValue(),
-              .documentUses = DocumentUses.getValue(),
-              .documentBinds = DocumentBinds.getValue(),
-              .documentMethods = DocumentMethods.getValue()});
+  report(Db, {.DocumentOwns = DocumentOwns.getValue(),
+              .DocumentUses = DocumentUses.getValue(),
+              .DocumentBinds = DocumentBinds.getValue(),
+              .DocumentMethods = DocumentMethods.getValue()});
 
-  return frontend_result;
+  return FrontendResult;
 }

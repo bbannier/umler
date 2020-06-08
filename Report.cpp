@@ -12,13 +12,13 @@
 
 enum ReportType { dot, plantuml };
 
-template <ReportType> void reportBegin(const DB &, const ReportKind &kind) {}
-template <ReportType> void reportEnd(const DB &, const ReportKind &kind) {}
-template <ReportType> void reportClasses(const DB &, const ReportKind &kind) {}
+template <ReportType> void reportBegin(const DB &, const ReportKind &Kind) {}
+template <ReportType> void reportEnd(const DB &, const ReportKind &Kind) {}
+template <ReportType> void reportClasses(const DB &, const ReportKind &Kind) {}
 template <ReportType>
-void reportInheritance(const DB &, const ReportKind &kind) {}
+void reportInheritance(const DB &, const ReportKind &Kind) {}
 
-template <> void reportBegin<plantuml>(const DB &, const ReportKind &kind) {
+template <> void reportBegin<plantuml>(const DB &, const ReportKind &Kind) {
   llvm::outs() << "@startuml\n\n"
                   "skinparam class {\n"
                   "  BackgroundColor White\n"
@@ -28,86 +28,86 @@ template <> void reportBegin<plantuml>(const DB &, const ReportKind &kind) {
                   "hide circle\n"
                   "hide empty attributes\n\n";
 }
-template <> void reportEnd<plantuml>(const DB &, const ReportKind &kind) {
+template <> void reportEnd<plantuml>(const DB &, const ReportKind &Kind) {
   llvm::outs() << "\n@enduml\n";
 }
-template <> void reportClasses<plantuml>(const DB &db, const ReportKind &kind) {
-  db.execute("SELECT DISTINCT namespace FROM classes");
-  const auto namespace_rows = db.rows;
+template <> void reportClasses<plantuml>(const DB &Db, const ReportKind &Kind) {
+  Db.execute("SELECT DISTINCT namespace FROM classes");
+  const auto NamespaceRows = Db.rows;
 
-  for (size_t i = 0; i < namespace_rows.size(); ++i) {
-    const auto &ns = namespace_rows[i][0];
-    if (not db.execute("SELECT name FROM classes WHERE namespace = '" + ns +
+  for (size_t I = 0; I < NamespaceRows.size(); ++I) {
+    const auto &Ns = NamespaceRows[I][0];
+    if (not Db.execute("SELECT name FROM classes WHERE namespace = '" + Ns +
                        "'"))
       return;
-    const auto class_rows = db.rows;
-    for (const auto &row : class_rows) {
-      const auto &class_ = row[0];
-      llvm::outs() << "class \"" + class_ + "\" {\n";
+    const auto ClassRows = Db.rows;
+    for (const auto &Row : ClassRows) {
+      const auto &Class = Row[0];
+      llvm::outs() << "class \"" + Class + "\" {\n";
 
-      if (kind.documentMethods) {
-        db.execute("SELECT name, parameters, returns, access, static, abstract "
+      if (Kind.DocumentMethods) {
+        Db.execute("SELECT name, parameters, returns, access, static, abstract "
                    "FROM methods WHERE class='" +
-                   class_ + "'");
-        for (const auto &method : db.rows) {
-          std::string access = "";
-          switch (std::stoi(method[3])) {
+                   Class + "'");
+        for (const auto &Method : Db.rows) {
+          std::string Access = "";
+          switch (std::stoi(Method[3])) {
           case clang::AS_public: {
-            access = "+";
+            Access = "+";
           } break;
           case clang::AS_private: {
-            access = "-";
+            Access = "-";
           } break;
           case clang::AS_protected: {
-            access = "#";
+            Access = "#";
           } break;
           case clang::AS_none:
             break;
           }
 
-          const std::string is_static = std::stoi(method[4]) ? "{static}" : "";
-          const std::string is_abstract =
-              std::stoi(method[5]) ? "{abstract}" : "";
-          const auto modifiers = is_static + is_abstract;
+          const std::string IsStatic = std::stoi(Method[4]) ? "{static}" : "";
+          const std::string IsAbstract =
+              std::stoi(Method[5]) ? "{abstract}" : "";
+          const auto Modifiers = IsStatic + IsAbstract;
 
-          const auto returns = method[2] == "void" ? "" : method[2];
-          llvm::outs() << "  " + access + returns + " " + method[0] + "(" +
-                              method[1] + ")" + " " + modifiers + "\n";
+          const auto Returns = Method[2] == "void" ? "" : Method[2];
+          llvm::outs() << "  " + Access + Returns + " " + Method[0] + "(" +
+                              Method[1] + ")" + " " + Modifiers + "\n";
         }
       }
       llvm::outs() << "}\n";
 
       // show "owns" relationships
-      if (kind.documentOwns) {
-        db.execute("SELECT object, name FROM owns WHERE owner ='" + class_ +
+      if (Kind.DocumentOwns) {
+        Db.execute("SELECT object, name FROM owns WHERE owner ='" + Class +
                    "'");
-        for (const auto &row : db.rows)
-          llvm::outs() << "\"" + class_ + "\" *-- \"" + row[0] + "\" : \"" +
-                              row[1] + "\"\n";
+        for (const auto &Row : Db.rows)
+          llvm::outs() << "\"" + Class + "\" *-- \"" + Row[0] + "\" : \"" +
+                              Row[1] + "\"\n";
       }
 
       // show "uses" relationships
-      if (kind.documentUses) {
-        db.execute("SELECT object FROM uses WHERE user ='" + class_ + "'");
-        for (const auto &row : db.rows) {
-          llvm::outs() << "\"" + class_ + "\" --> \"" + row[0] + "\"\n";
+      if (Kind.DocumentUses) {
+        Db.execute("SELECT object FROM uses WHERE user ='" + Class + "'");
+        for (const auto &Row : Db.rows) {
+          llvm::outs() << "\"" + Class + "\" --> \"" + Row[0] + "\"\n";
         }
       }
     }
 
     // show "binds" relationships
-    if (kind.documentBinds) {
-      db.execute("SELECT DISTINCT template, template_args FROM template_inst");
-      const auto template_rows = db.rows;
+    if (Kind.DocumentBinds) {
+      Db.execute("SELECT DISTINCT template, template_args FROM template_inst");
+      const auto TemplateRows = Db.rows;
 
-      for (const auto &template_ : template_rows) {
-        llvm::outs() << "class \"" + template_[0] + "\"<" + template_[1] +
+      for (const auto &Template : TemplateRows) {
+        llvm::outs() << "class \"" + Template[0] + "\"<" + Template[1] +
                             "> {\n}\n";
 
-        db.execute("SELECT instance FROM template_inst WHERE template = '" +
-                   template_[0] + "'");
-        for (const auto &row : db.rows) {
-          llvm::outs() << "\"" + row[0] + "\" ..|> \"" + template_[0] +
+        Db.execute("SELECT instance FROM template_inst WHERE template = '" +
+                   Template[0] + "'");
+        for (const auto &Row : Db.rows) {
+          llvm::outs() << "\"" + Row[0] + "\" ..|> \"" + Template[0] +
                               "\" : <<bind>>\n";
         }
       }
@@ -116,63 +116,63 @@ template <> void reportClasses<plantuml>(const DB &db, const ReportKind &kind) {
 }
 
 template <>
-void reportInheritance<plantuml>(const DB &db, const ReportKind &kind) {
-  if (not db.execute("SELECT derived, base FROM inheritance"))
+void reportInheritance<plantuml>(const DB &Db, const ReportKind &Kind) {
+  if (not Db.execute("SELECT derived, base FROM inheritance"))
     return;
-  for (const auto &row : db.rows) {
-    assert(row.size() == 2);
-    llvm::outs() << "\"" + row[0] << "\" --|> \"" << row[1] << "\"\n";
+  for (const auto &Row : Db.rows) {
+    assert(Row.size() == 2);
+    llvm::outs() << "\"" + Row[0] << "\" --|> \"" << Row[1] << "\"\n";
   }
 }
 
-template <> void reportBegin<dot>(const DB &, const ReportKind &kind) {
+template <> void reportBegin<dot>(const DB &, const ReportKind &Kind) {
   llvm::outs() << "digraph G {\n";
 }
 
-template <> void reportEnd<dot>(const DB &, const ReportKind &kind) {
+template <> void reportEnd<dot>(const DB &, const ReportKind &Kind) {
   llvm::outs() << "}\n";
 }
 
-template <> void reportInheritance<dot>(const DB &db, const ReportKind &kind) {
-  if (not db.execute("SELECT derived, base FROM inheritance"))
+template <> void reportInheritance<dot>(const DB &Db, const ReportKind &Kind) {
+  if (not Db.execute("SELECT derived, base FROM inheritance"))
     return;
 
-  for (const auto &row : db.rows) {
-    assert(row.size() == 2);
+  for (const auto &Row : Db.rows) {
+    assert(Row.size() == 2);
 
-    llvm::outs() << row[0] << " -> " << row[1] << "\n";
+    llvm::outs() << Row[0] << " -> " << Row[1] << "\n";
   }
 }
 
-template <> void reportClasses<dot>(const DB &db, const ReportKind &kind) {
-  if (not db.execute("SELECT DISTINCT namespace FROM classes"))
+template <> void reportClasses<dot>(const DB &Db, const ReportKind &Kind) {
+  if (not Db.execute("SELECT DISTINCT namespace FROM classes"))
     return;
 
-  const auto namespace_rows = db.rows;
+  const auto NamespaceRows = Db.rows;
 
-  for (size_t i = 0; i < namespace_rows.size(); ++i) {
-    const auto &ns = namespace_rows[i][0];
-    llvm::outs() << "subgraph cluster_" << std::to_string(i) << "{\n";
-    llvm::outs() << "label = \"" << ns << "\"\n";
-    if (not db.execute("SELECT name FROM classes WHERE namespace = '" + ns +
+  for (size_t I = 0; I < NamespaceRows.size(); ++I) {
+    const auto &Ns = NamespaceRows[I][0];
+    llvm::outs() << "subgraph cluster_" << std::to_string(I) << "{\n";
+    llvm::outs() << "label = \"" << Ns << "\"\n";
+    if (not Db.execute("SELECT name FROM classes WHERE namespace = '" + Ns +
                        "'"))
       return;
-    for (const auto &row : db.rows) {
-      const auto &class_ = row[0];
-      llvm::outs() << class_ << ";\n";
+    for (const auto &Row : Db.rows) {
+      const auto &Class = Row[0];
+      llvm::outs() << Class << ";\n";
     }
 
     llvm::outs() << "}\n";
   }
 }
 
-template <ReportType T> void report(const DB &db, const ReportKind &kind) {
-  reportBegin<T>(db, kind);
-  reportClasses<T>(db, kind);
-  reportInheritance<T>(db, kind);
-  reportEnd<T>(db, kind);
+template <ReportType T> void report(const DB &Db, const ReportKind &Kind) {
+  reportBegin<T>(Db, Kind);
+  reportClasses<T>(Db, Kind);
+  reportInheritance<T>(Db, Kind);
+  reportEnd<T>(Db, Kind);
 }
 
-void report(const DB &db, const ReportKind &kind) {
-  return report<plantuml>(db, kind);
+void report(const DB &Db, const ReportKind &Kind) {
+  return report<plantuml>(Db, Kind);
 }

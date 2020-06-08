@@ -5,8 +5,8 @@
 #include <llvm/Support/raw_ostream.h>
 #include <sqlite3.h>
 
-DB::DB(const std::string &dbpath) {
-  if (sqlite3_open(dbpath.c_str(), &connection) != SQLITE_OK) {
+DB::DB(const std::string &Dbpath) {
+  if (sqlite3_open(Dbpath.c_str(), &connection) != SQLITE_OK) {
     llvm::errs() << "COULD NOT OPEN DB\n";
     connection = nullptr;
     return;
@@ -55,10 +55,10 @@ DB::DB(const std::string &dbpath) {
 
 DB::~DB() { sqlite3_close(connection); }
 
-bool DB::execute(const std::string &statement) const {
-  if (sqlite3_prepare_v2(connection, statement.c_str(), -1, &stmt, nullptr) !=
+bool DB::execute(const std::string &Statement) const {
+  if (sqlite3_prepare_v2(connection, Statement.c_str(), -1, &stmt, nullptr) !=
       SQLITE_OK) {
-    llvm::errs() << "COULD NOT PREPARE " << statement << "\n";
+    llvm::errs() << "COULD NOT PREPARE " << Statement << "\n";
     llvm::errs() << sqlite3_errmsg(connection) << "\n";
     return false;
   }
@@ -70,18 +70,18 @@ bool DB::execute(const std::string &statement) const {
 }
 
 bool DB::step() const {
-  const auto rc = sqlite3_step(stmt);
-  if (rc == SQLITE_DONE) {
+  const auto Rc = sqlite3_step(stmt);
+  if (Rc == SQLITE_DONE) {
     return true;
   }
 
-  if (rc == SQLITE_ROW) {
-    std::vector<std::string> result;
-    for (int column = 0; column < sqlite3_column_count(stmt); ++column) {
-      result.emplace_back(
-          reinterpret_cast<const char *>(sqlite3_column_text(stmt, column)));
+  if (Rc == SQLITE_ROW) {
+    std::vector<std::string> Result;
+    for (int Column = 0; Column < sqlite3_column_count(stmt); ++Column) {
+      Result.emplace_back(
+          reinterpret_cast<const char *>(sqlite3_column_text(stmt, Column)));
     }
-    rows.emplace_back(std::move(result));
+    rows.emplace_back(std::move(Result));
     return step();
   }
 
