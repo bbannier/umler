@@ -1,23 +1,24 @@
 #include "Report.h"
 
-#include <llvm/Support/raw_ostream.h>
-#include <clang/Basic/Specifiers.h>
-
 #include <cassert>
 #include <cstddef>
 #include <string>
 #include <vector>
 
+#include "clang/Basic/Specifiers.h"
+#include "llvm/Support/raw_ostream.h"
+
 #include "DB.h"
 
 enum ReportType { dot, plantuml };
 
-template <ReportType> void reportBegin(const DB &, const ReportKind& kind) {}
-template <ReportType> void reportEnd(const DB &, const ReportKind& kind) {}
-template <ReportType> void reportClasses(const DB &, const ReportKind& kind) {}
-template <ReportType> void reportInheritance(const DB &, const ReportKind& kind) {}
+template <ReportType> void reportBegin(const DB &, const ReportKind &kind) {}
+template <ReportType> void reportEnd(const DB &, const ReportKind &kind) {}
+template <ReportType> void reportClasses(const DB &, const ReportKind &kind) {}
+template <ReportType>
+void reportInheritance(const DB &, const ReportKind &kind) {}
 
-template <> void reportBegin<plantuml>(const DB &, const ReportKind& kind) {
+template <> void reportBegin<plantuml>(const DB &, const ReportKind &kind) {
   llvm::outs() << "@startuml\n\n"
                   "skinparam class {\n"
                   "  BackgroundColor White\n"
@@ -27,10 +28,10 @@ template <> void reportBegin<plantuml>(const DB &, const ReportKind& kind) {
                   "hide circle\n"
                   "hide empty attributes\n\n";
 }
-template <> void reportEnd<plantuml>(const DB &, const ReportKind& kind) {
+template <> void reportEnd<plantuml>(const DB &, const ReportKind &kind) {
   llvm::outs() << "\n@enduml\n";
 }
-template <> void reportClasses<plantuml>(const DB &db, const ReportKind& kind) {
+template <> void reportClasses<plantuml>(const DB &db, const ReportKind &kind) {
   db.execute("SELECT DISTINCT namespace FROM classes");
   const auto namespace_rows = db.rows;
 
@@ -40,8 +41,8 @@ template <> void reportClasses<plantuml>(const DB &db, const ReportKind& kind) {
                        "'"))
       return;
     const auto class_rows = db.rows;
-    for (const auto& row: class_rows) {
-      const auto& class_ = row[0];
+    for (const auto &row : class_rows) {
+      const auto &class_ = row[0];
       llvm::outs() << "class \"" + class_ + "\" {\n";
 
       if (kind.documentMethods) {
@@ -99,13 +100,13 @@ template <> void reportClasses<plantuml>(const DB &db, const ReportKind& kind) {
       db.execute("SELECT DISTINCT template, template_args FROM template_inst");
       const auto template_rows = db.rows;
 
-      for (const auto& template_ : template_rows) {
+      for (const auto &template_ : template_rows) {
         llvm::outs() << "class \"" + template_[0] + "\"<" + template_[1] +
                             "> {\n}\n";
 
         db.execute("SELECT instance FROM template_inst WHERE template = '" +
                    template_[0] + "'");
-        for (const auto& row: db.rows) {
+        for (const auto &row : db.rows) {
           llvm::outs() << "\"" + row[0] + "\" ..|> \"" + template_[0] +
                               "\" : <<bind>>\n";
         }
@@ -114,35 +115,36 @@ template <> void reportClasses<plantuml>(const DB &db, const ReportKind& kind) {
   }
 }
 
-template <> void reportInheritance<plantuml>(const DB &db, const ReportKind& kind) {
+template <>
+void reportInheritance<plantuml>(const DB &db, const ReportKind &kind) {
   if (not db.execute("SELECT derived, base FROM inheritance"))
     return;
-  for (const auto& row: db.rows) {
+  for (const auto &row : db.rows) {
     assert(row.size() == 2);
     llvm::outs() << "\"" + row[0] << "\" --|> \"" << row[1] << "\"\n";
   }
 }
 
-template <> void reportBegin<dot>(const DB&, const ReportKind& kind) {
+template <> void reportBegin<dot>(const DB &, const ReportKind &kind) {
   llvm::outs() << "digraph G {\n";
 }
 
-template <> void reportEnd<dot>(const DB&, const ReportKind& kind) {
+template <> void reportEnd<dot>(const DB &, const ReportKind &kind) {
   llvm::outs() << "}\n";
 }
 
-template <> void reportInheritance<dot>(const DB &db, const ReportKind& kind) {
+template <> void reportInheritance<dot>(const DB &db, const ReportKind &kind) {
   if (not db.execute("SELECT derived, base FROM inheritance"))
     return;
 
-  for (const auto& row : db.rows ) {
+  for (const auto &row : db.rows) {
     assert(row.size() == 2);
 
     llvm::outs() << row[0] << " -> " << row[1] << "\n";
   }
 }
 
-template <> void reportClasses<dot>(const DB &db, const ReportKind& kind) {
+template <> void reportClasses<dot>(const DB &db, const ReportKind &kind) {
   if (not db.execute("SELECT DISTINCT namespace FROM classes"))
     return;
 
@@ -155,8 +157,8 @@ template <> void reportClasses<dot>(const DB &db, const ReportKind& kind) {
     if (not db.execute("SELECT name FROM classes WHERE namespace = '" + ns +
                        "'"))
       return;
-    for (const auto& row: db.rows) {
-      const auto& class_ = row[0];
+    for (const auto &row : db.rows) {
+      const auto &class_ = row[0];
       llvm::outs() << class_ << ";\n";
     }
 

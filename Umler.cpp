@@ -1,9 +1,9 @@
-#include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/StringRef.h"
-#include "llvm/Support/Casting.h"
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Signals.h"
-#include "llvm/Support/raw_ostream.h"
+#include <algorithm>
+#include <cassert>
+#include <functional>
+#include <iterator>
+#include <memory>
+#include <string>
 
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclBase.h"
@@ -14,15 +14,21 @@
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/ASTMatchers/ASTMatchersInternal.h"
+#include "clang/Basic/FixedPoint.h"
+#include "clang/Basic/LLVM.h"
+#include "clang/Tooling/ArgumentsAdjusters.h"
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/Refactoring.h"
 #include "clang/Tooling/Tooling.h"
-
-#include <algorithm>
-#include <memory>
-#include <string>
-
-#include <cassert>
+#include "llvm/ADT/APSInt.h"
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Casting.h"
+#include "llvm/Support/CommandLine.h"
+#include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/Signals.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "DB.h"
 #include "Report.h"
@@ -48,15 +54,15 @@ static cl::opt<bool> DocumentOwns("document-owns",
                                   cl::desc("show owns relationships"),
                                   cl::init(false), cl::cat(UmlerCategory));
 static cl::opt<bool> DocumentBinds("document-binds",
-                                  cl::desc("show binds relationships"),
-                                  cl::init(false), cl::cat(UmlerCategory));
+                                   cl::desc("show binds relationships"),
+                                   cl::init(false), cl::cat(UmlerCategory));
 static cl::opt<bool> DocumentMethods("document-methods",
                                      cl::desc("show class methods"),
                                      cl::init(true), cl::cat(UmlerCategory));
 
 struct BaseCallbackData {
-  const CXXRecordDecl* derived;
-  const DB* db;
+  const CXXRecordDecl *derived;
+  const DB *db;
 };
 
 /// obtain name from some class-like entity
@@ -64,9 +70,9 @@ struct BaseCallbackData {
 /// declared as a template to inhibit conversion
 /// @param v the class-like entity to work on
 template <typename T> std::string className(const T &v);
-template <> std::string className<CXXRecordDecl>(const CXXRecordDecl&);
-template <> std::string className<QualType>(const QualType&);
-template <> std::string className<TemplateArgument>(const TemplateArgument&);
+template <> std::string className<CXXRecordDecl>(const CXXRecordDecl &);
+template <> std::string className<QualType>(const QualType &);
+template <> std::string className<TemplateArgument>(const TemplateArgument &);
 
 template <> std::string className<CXXRecordDecl>(const CXXRecordDecl &cl) {
   if (const auto t = dyn_cast_or_null<ClassTemplateSpecializationDecl>(&cl)) {
@@ -157,8 +163,8 @@ bool recordClass(const CXXRecordDecl *cl, const DB &db) {
     if (method->isImplicit())
       continue;
     const auto &method_name = method->getNameAsString();
-    const auto& return_type = method->getReturnType();
-    const auto & returns = className(return_type);
+    const auto &return_type = method->getReturnType();
+    const auto &returns = className(return_type);
     // do never document boring void types
     if (not return_type->isVoidType() and
         not return_type->isVoidPointerType()) {
@@ -195,8 +201,8 @@ bool recordClass(const CXXRecordDecl *cl, const DB &db) {
     if (field->isImplicit())
       continue;
     if (const auto d = field->getType()->getAsCXXRecordDecl()) {
-      const auto& field_type = className(*d);
-      const auto& field_name = field->getNameAsString();
+      const auto &field_type = className(*d);
+      const auto &field_name = field->getNameAsString();
 
       if (not db.execute(
               "INSERT OR IGNORE INTO owns (owner, object, name) VALUES ('" +
@@ -231,7 +237,9 @@ bool recordBases(const CXXRecordDecl *base, const BaseCallbackData &data) {
         "INSERT OR IGNORE INTO inheritance (derived, base) VALUES ('" +
         className(*derived) + "','" + className(*base) + "')");
     const auto new_data = BaseCallbackData{base, data.db};
-    base->forallBases([&new_data](const CXXRecordDecl* base) { return recordBases(base, new_data);});
+    base->forallBases([&new_data](const CXXRecordDecl *base) {
+      return recordBases(base, new_data);
+    });
   }
 
   return true;
@@ -255,8 +263,8 @@ public:
     walkHierarchy(node, db);
   }
 
-// private:
-  const DB& db;
+  // private:
+  const DB &db;
 };
 
 /// helper for build_nested_namespace_matchers
@@ -268,7 +276,7 @@ auto helper_build_nested_namespace_matchers(const StringRef &head,
     return namespaceDecl(hasName(head.str()));
   }
 
-  const auto& new_head = *tail.begin();
+  const auto &new_head = *tail.begin();
   const auto new_tail = Iterable(std::next(tail.begin()), tail.end());
 
   return namespaceDecl(
