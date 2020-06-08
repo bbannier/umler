@@ -218,7 +218,7 @@ bool recordBases(const CXXRecordDecl *base, const BaseCallbackData &data) {
                                  const CXXRecordDecl *derived) {
     return std::find_if(
                derived->bases_begin(), derived->bases_end(),
-               [&base, &derived](const CXXBaseSpecifier &base_sp) {
+               [&base](const CXXBaseSpecifier &base_sp) {
                  const auto &name1 =
                      base_sp.getType()->getAsCXXRecordDecl()->getName();
                  const auto &name2 = base->getName();
