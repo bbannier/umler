@@ -9,6 +9,7 @@ add_clang_executable(umler
 )
 
 target_link_libraries(umler
+  PRIVATE
   sqlite3
   clangAST
   clangASTMatchers
