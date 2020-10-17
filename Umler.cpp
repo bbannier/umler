@@ -14,7 +14,6 @@
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/ASTMatchers/ASTMatchersInternal.h"
-#include "clang/Basic/FixedPoint.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Tooling/ArgumentsAdjusters.h"
 #include "clang/Tooling/CommonOptionsParser.h"
@@ -161,7 +160,7 @@ bool recordClass(const CXXRecordDecl *Cl, const DB &Db) {
                "')");
   }
 
-  for (const auto &Method : Cl->methods()) {
+  for (auto &&Method : Cl->methods()) {
     if (Method->isImplicit())
       continue;
     const auto &MethodName = Method->getNameAsString();
@@ -198,7 +197,7 @@ bool recordClass(const CXXRecordDecl *Cl, const DB &Db) {
   }
 
   // record member variables
-  for (const auto &Field : Cl->fields()) {
+  for (auto &&Field : Cl->fields()) {
     if (Field->isImplicit())
       continue;
     if (auto *const D = Field->getType()->getAsCXXRecordDecl()) {
