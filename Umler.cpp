@@ -325,9 +325,14 @@ extractNamespaceComponents(const StringRef &FullName) {
 
 int main(int argc, const char **argv) {
   llvm::sys::PrintStackTraceOnErrorSignal(argv[0]);
-  CommonOptionsParser OptionsParser(argc, argv, UmlerCategory);
-  RefactoringTool Tool(OptionsParser.getCompilations(),
-                       OptionsParser.getSourcePathList());
+  auto OptionsParser = CommonOptionsParser::create(argc, argv, UmlerCategory);
+
+  if (auto Error = OptionsParser.takeError()) {
+    llvm::errs() << "Could not parse options";
+  }
+
+  RefactoringTool Tool(OptionsParser->getCompilations(),
+                       OptionsParser->getSourcePathList());
   ast_matchers::MatchFinder Finder;
 
   const auto Db = DB{DBPath.getValue()};
